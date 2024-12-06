@@ -4,15 +4,13 @@ from anthropic.types.beta import BetaToolResultBlockParam, BetaMessageParam
 from scrapybara import Scrapybara
 from scrapybara.anthropic import BashTool, ComputerTool, EditTool, ToolResult
 
-from typing import Optional
-import os
-
 from utils import SYSTEM_PROMPT, ToolCollection, make_tool_result
+from env import ANTHROPIC_API_KEY, SCRAPYBARA_API_KEY
 
-ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
-SCRAPYBARA_API_KEY = os.getenv("SCRAPYBARA_API_KEY")
 
-async def run_agent(user_message, telegram_client, event):
+async def run_agent(message: str, telegram_client, event) -> None:
+    # Your agent logic here
+    await telegram_client.send_message(event.chat_id, "Your response here")  # Make sure to have at least one awaitable operation
 
     # Initialize Scrapybara VM
     s = Scrapybara(api_key=SCRAPYBARA_API_KEY) # type: ignore
@@ -32,7 +30,7 @@ async def run_agent(user_message, telegram_client, event):
 
     messages.append({
         "role": "user",
-        "content": [{"type": "text", "text": user_message}],
+        "content": [{"type": "text", "text": message}],
     })
 
     while True:
