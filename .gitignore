@@ -28,5 +28,6 @@ venv/
 ENV/
 env.bak/
 venv.bak/
-.python-version
 uv.lock
+bot_session.session
+bot_session.session-journal

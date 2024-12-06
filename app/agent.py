@@ -7,17 +7,17 @@ from scrapybara.anthropic import BashTool, ComputerTool, EditTool, ToolResult
 from typing import Optional
 import os
 
-from .utils import SYSTEM_PROMPT, ToolCollection, make_tool_result
+from utils import SYSTEM_PROMPT, ToolCollection, make_tool_result
 
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 SCRAPYBARA_API_KEY = os.getenv("SCRAPYBARA_API_KEY")
 
-async def run_agent(user_message, message_function):
+async def run_agent(user_message, telegram_client, event):
 
     # Initialize Scrapybara VM
     s = Scrapybara(api_key=SCRAPYBARA_API_KEY) # type: ignore
     instance = s.start(instance_type="medium")
-    message_function(f"Started Scrapybara instance: {instance.id}")
+    await telegram_client.send_message(event.chat_id, f"Started Scrapybara instance: {instance.id}")
 
     # Initialize tools
     tools = ToolCollection(
@@ -50,9 +50,9 @@ async def run_agent(user_message, message_function):
         tool_results = []
         for content in response.content:
             if content.type == "text":
-                message_function(f"\nAssistant: {content.text}")
+                await telegram_client.send_message(event.chat_id, f"\nAssistant: {content.text}")
             elif content.type == "tool_use":
-                message_function(f"\nTool Use: {content.name}")
+                await telegram_client.send_message(event.chat_id, f"\nTool Use: {content.name}")
                 result = await tools.run(
                     name=content.name,
                     tool_input=content.input # type: ignore
@@ -69,9 +69,9 @@ async def run_agent(user_message, message_function):
                     tool_results.append(tool_result)
                     
                     if result.output:
-                        message_function(f"Tool Output: {result.output}")
+                        await telegram_client.send_message(event.chat_id, f"Tool Output: {result.output}")
                     if result.error:
-                        message_function(f"Tool Error: {result.error}")
+                        await telegram_client.send_message(event.chat_id, f"Tool Error: {result.error}")
 
         # Add assistant's response and tool results to messages
         messages.append({

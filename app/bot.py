@@ -1,7 +1,7 @@
 from telethon import TelegramClient, events
 from dotenv import load_dotenv
 
-from .agent import run_agent
+from agent import run_agent
 import os
 
 load_dotenv()
@@ -24,13 +24,10 @@ client = TelegramClient('bot_session', TELEGRAM_API_ID, TELEGRAM_API_HASH).start
 @client.on(events.NewMessage())
 async def handle_message(event):
     if event.message.text:
-        async def send_message(text: str):
-            await client.send_message(event.chat_id, text)
-            
-        await run_agent(event.message.text, send_message)
+        await run_agent(event.message.text, client, event)
 
 def start_bot():
     client.run_until_disconnected()
-    
+
 if __name__ == "__main__":
     start_bot()
