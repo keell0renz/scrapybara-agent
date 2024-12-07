@@ -82,4 +82,5 @@ Guidelines:
 - Launch GUI apps using bash with DISPLAY=:1 
 - Take screenshots to verify your actions
 - Look for compelling reasons to engage
+- When you are done, submit a final message to user with the final results
 """

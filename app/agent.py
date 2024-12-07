@@ -6,6 +6,8 @@ from anthropic.types.beta import BetaToolResultBlockParam, BetaMessageParam
 from scrapybara.anthropic import BashTool, ComputerTool, EditTool, ToolResult
 from utils import SYSTEM_PROMPT, ToolCollection, make_tool_result
 from typing import Callable
+
+
 async def run_agent(
     message: str,
     update_message: Callable,
@@ -14,16 +16,16 @@ async def run_agent(
 ) -> None:
     # Initialize tools
     tools = ToolCollection(
-        ComputerTool(instance),
-        BashTool(instance),
-        EditTool(instance)
+        ComputerTool(instance), BashTool(instance), EditTool(instance)
     )
 
     messages = []
-    messages.append({
-        "role": "user",
-        "content": [{"type": "text", "text": message}],
-    })
+    messages.append(
+        {
+            "role": "user",
+            "content": [{"type": "text", "text": message}],
+        }
+    )
 
     full_response = ""  # Track the complete response
 
@@ -34,7 +36,7 @@ async def run_agent(
             messages=messages,
             system=[{"type": "text", "text": SYSTEM_PROMPT}],
             tools=tools.to_params(),
-            betas=["computer-use-2024-10-22"]
+            betas=["computer-use-2024-10-22"],
         )
 
         tool_results = []
@@ -44,33 +46,27 @@ async def run_agent(
                 await update_message(full_response)
             elif content.type == "tool_use":
                 tool_result = await tools.run(
-                    name=content.name,
-                    tool_input=content.input # type: ignore
+                    name=content.name, tool_input=content.input  # type: ignore
                 )
-                
+
                 if content.name == "bash" and not tool_result:
                     tool_result = await tools.run(
-                        name="computer",
-                        tool_input={"action": "screenshot"}
+                        name="computer", tool_input={"action": "screenshot"}
                     )
-                
+
                 if tool_result:
                     result = make_tool_result(tool_result, content.id)
                     tool_results.append(result)
-                    
+
                     if tool_result.output or tool_result.error:
                         full_response += f"\n_{str(result)}_"
                         await update_message(full_response)
 
-        messages.append({
-            "role": "assistant",
-            "content": [c.model_dump() for c in response.content]
-        })
+        messages.append(
+            {"role": "assistant", "content": [c.model_dump() for c in response.content]}
+        )
 
         if tool_results:
-            messages.append({
-                "role": "user",
-                "content": tool_results
-            })
+            messages.append({"role": "user", "content": tool_results})
         else:
             break
