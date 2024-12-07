@@ -21,6 +21,7 @@ s = Scrapybara(api_key=SCRAPYBARA_API_KEY)  # type: ignore
 instances: Dict[int, Instance] = {}  # Maps instance number to instance
 preferred_instance: Optional[int] = None  # Stores the number of preferred instance
 anthropic_client = Anthropic(api_key=ANTHROPIC_API_KEY)
+stop_flags: Dict[int, bool] = {}  # Maps chat_id to stop flag
 
 
 def get_next_instance_number() -> int:
@@ -48,6 +49,7 @@ async def start_command(event):
         "/select <number> - Select preferred instance\n"
         "/delete <number> - Delete specific instance\n"
         "/deleteall - Delete all instances\n"
+        "/stop - Stop the current agent execution\n"
         "Send any other message to interact with the AI!"
     )
 
@@ -134,9 +136,19 @@ async def delete_all_instances(event):
     await event.reply("All instances have been deleted.")
 
 
+@client.on(events.NewMessage(pattern="/stop"))
+async def stop_agent(event):
+    chat_id = event.chat_id
+    stop_flags[chat_id] = True
+    await event.reply("Stopping the current agent execution...")
+
+
 @client.on(events.NewMessage())
 async def handle_message(event):
     if event.message.text and not event.message.text.startswith("/"):
+        chat_id = event.chat_id
+        stop_flags[chat_id] = False  # Reset stop flag for new conversation
+        
         instance_number = await ensure_instance_exists()
         if instance_number is None:
             await event.reply("No active instance. Creating one...")
@@ -156,12 +168,16 @@ async def handle_message(event):
             nonlocal progress_message
             await client.edit_message(event.chat_id, progress_message.id, text) # type: ignore
             
-        # Pass the callback instead of client and chat_id
+        # Pass the stop check function to run_agent
+        async def should_stop() -> bool:
+            return stop_flags.get(chat_id, False)
+
         await run_agent(
             event.message.text,
             update_message,
             instance,
-            anthropic_client
+            anthropic_client,
+            should_stop  # Add this new parameter
         )
 
 
