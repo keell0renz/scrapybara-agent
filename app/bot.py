@@ -149,7 +149,7 @@ async def handle_message(event):
         instance = instances[instance_number]
         
         # Send initial message and store it
-        progress_message = await client.send_message(event.chat_id, "Processing your request...")
+        progress_message = await client.send_message(event.chat_id, f"noVNC: {instance.get_stream_url()}")
         
         # Define the callback function for updating the message
         async def update_message(text: str):
