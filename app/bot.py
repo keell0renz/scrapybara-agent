@@ -15,6 +15,7 @@ from typing import Dict, Optional
 client = TelegramClient("bot_session", TELEGRAM_API_ID, TELEGRAM_API_HASH).start(
     bot_token=TELEGRAM_API_KEY
 )
+s = Scrapybara(api_key=SCRAPYBARA_API_KEY)  # type: ignore
 
 # Global variables for instance management
 instances: Dict[int, Instance] = {}  # Maps instance number to instance
@@ -42,7 +43,7 @@ async def ensure_instance_exists():
 async def start_command(event):
     await event.reply(
         "Hello! I'm an AI assistant bot. Available commands:\n"
-        "/create - Create new instance\n"
+        "/create [small|medium|large] - Create new instance with optional size\n"
         "/list - List all instances\n"
         "/select <number> - Select preferred instance\n"
         "/delete <number> - Delete specific instance\n"
@@ -53,16 +54,25 @@ async def start_command(event):
 
 @client.on(events.NewMessage(pattern="/create"))
 async def create_instance(event):
-    s = Scrapybara(api_key=SCRAPYBARA_API_KEY)  # type: ignore
-    instance = s.start(instance_type="medium")
-    instance_number = get_next_instance_number()
-    instances[instance_number] = instance
+    try:
+        # Default to medium if no size specified
+        size = "small"
+        parts = event.message.text.split()
+        if len(parts) > 1 and parts[1].lower() in ["small", "medium", "large"]:
+            size = parts[1].lower()
 
-    global preferred_instance
-    if preferred_instance is None:
-        preferred_instance = instance_number
+        instance = s.start(instance_type=size)
+        instance_number = get_next_instance_number()
+        instances[instance_number] = instance
 
-    await event.reply(f"Created new instance #{instance_number}")
+        global preferred_instance
+        if preferred_instance is None:
+            # Set preferred to instance with lowest number if none set
+            preferred_instance = min(instances.keys())
+
+        await event.reply(f"Created new {size} instance #{instance_number}")
+    except Exception as e:
+        await event.reply(f"Error creating instance: {str(e)}")
 
 
 @client.on(events.NewMessage(pattern="/list"))
