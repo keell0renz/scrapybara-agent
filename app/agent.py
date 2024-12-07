@@ -1,22 +1,17 @@
+from telethon import TelegramClient, events
+from scrapybara import Scrapybara
+from scrapybara.models.instance import Instance
 from anthropic import Anthropic
 from anthropic.types.beta import BetaToolResultBlockParam, BetaMessageParam
-
-from scrapybara import Scrapybara
 from scrapybara.anthropic import BashTool, ComputerTool, EditTool, ToolResult
-
 from utils import SYSTEM_PROMPT, ToolCollection, make_tool_result
-from env import ANTHROPIC_API_KEY, SCRAPYBARA_API_KEY
-
-
-async def run_agent(message: str, telegram_client, event) -> None:
-    # Your agent logic here
-    await telegram_client.send_message(event.chat_id, "Your response here")  # Make sure to have at least one awaitable operation
-
-    # Initialize Scrapybara VM
-    s = Scrapybara(api_key=SCRAPYBARA_API_KEY) # type: ignore
-    instance = s.start(instance_type="medium")
-    await telegram_client.send_message(event.chat_id, f"Started Scrapybara instance: {instance.id}")
-
+from typing import Callable
+async def run_agent(
+    message: str,
+    update_message: Callable,
+    instance: Instance,
+    anthropic_client: Anthropic,
+) -> None:
     # Initialize tools
     tools = ToolCollection(
         ComputerTool(instance),
@@ -24,18 +19,16 @@ async def run_agent(message: str, telegram_client, event) -> None:
         EditTool(instance)
     )
 
-    # Initialize chat with Claude
-    client = Anthropic(api_key=ANTHROPIC_API_KEY)
     messages = []
-
     messages.append({
         "role": "user",
         "content": [{"type": "text", "text": message}],
     })
 
+    full_response = ""  # Track the complete response
+
     while True:
-        # Get Claude's response
-        response = client.beta.messages.create(
+        response = anthropic_client.beta.messages.create(
             model="claude-3-5-sonnet-20241022",
             max_tokens=4096,
             messages=messages,
@@ -44,34 +37,31 @@ async def run_agent(message: str, telegram_client, event) -> None:
             betas=["computer-use-2024-10-22"]
         )
 
-        # Process tool usage
         tool_results = []
         for content in response.content:
             if content.type == "text":
-                await telegram_client.send_message(event.chat_id, f"\nAssistant: {content.text}")
+                full_response += f"\n{content.text}"
+                await update_message(full_response)
             elif content.type == "tool_use":
-                await telegram_client.send_message(event.chat_id, f"\nTool Use: {content.name}")
-                result = await tools.run(
+                tool_result = await tools.run(
                     name=content.name,
                     tool_input=content.input # type: ignore
                 )
                 
-                if content.name == "bash" and not result:
-                    result = await tools.run(
+                if content.name == "bash" and not tool_result:
+                    tool_result = await tools.run(
                         name="computer",
                         tool_input={"action": "screenshot"}
                     )
                 
-                if result:
-                    tool_result = make_tool_result(result, content.id)
-                    tool_results.append(tool_result)
+                if tool_result:
+                    result = make_tool_result(tool_result, content.id)
+                    tool_results.append(result)
                     
-                    if result.output:
-                        await telegram_client.send_message(event.chat_id, f"Tool Output: {result.output}")
-                    if result.error:
-                        await telegram_client.send_message(event.chat_id, f"Tool Error: {result.error}")
+                    if tool_result.output or tool_result.error:
+                        full_response += f"\n_{str(result)}_"
+                        await update_message(full_response)
 
-        # Add assistant's response and tool results to messages
         messages.append({
             "role": "assistant",
             "content": [c.model_dump() for c in response.content]
@@ -84,5 +74,3 @@ async def run_agent(message: str, telegram_client, event) -> None:
             })
         else:
             break
-
-    instance.stop()
