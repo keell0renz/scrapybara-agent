@@ -2,7 +2,7 @@
 
 A Telegram bot powered by Claude AI's Computer Use capability combined with scrapybara.com VPS service to create AI agents that can control virtual machines.
 
-![Example](example.png)
+![Example](example.jpg)
 
 ## Features
 
