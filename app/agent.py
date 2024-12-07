@@ -20,14 +20,10 @@ async def run_agent(
     )
 
     messages = []
-    messages.append(
-        {
-            "role": "user",
-            "content": [{"type": "text", "text": message}],
-        }
-    )
-
-    full_response = ""  # Track the complete response
+    messages.append({
+        "role": "user",
+        "content": [{"type": "text", "text": message}],
+    })
 
     while True:
         response = anthropic_client.beta.messages.create(
@@ -36,22 +32,23 @@ async def run_agent(
             messages=messages,
             system=[{"type": "text", "text": SYSTEM_PROMPT}],
             tools=tools.to_params(),
-            betas=["computer-use-2024-10-22"],
+            betas=["computer-use-2024-10-22"]
         )
 
         tool_results = []
         for content in response.content:
             if content.type == "text":
-                full_response += f"\n{content.text}"
-                await update_message(full_response)
+                await update_message(f"{content.text}")
             elif content.type == "tool_use":
                 tool_result = await tools.run(
-                    name=content.name, tool_input=content.input  # type: ignore
+                    name=content.name,
+                    tool_input=content.input  # type: ignore
                 )
 
                 if content.name == "bash" and not tool_result:
                     tool_result = await tools.run(
-                        name="computer", tool_input={"action": "screenshot"}
+                        name="computer",
+                        tool_input={"action": "screenshot"}
                     )
 
                 if tool_result:
@@ -59,14 +56,17 @@ async def run_agent(
                     tool_results.append(result)
 
                     if tool_result.output or tool_result.error:
-                        full_response += f"\n_{str(result)}_"
-                        await update_message(full_response)
+                        await update_message(f"_{str(result)}_")
 
-        messages.append(
-            {"role": "assistant", "content": [c.model_dump() for c in response.content]}
-        )
+        messages.append({
+            "role": "assistant",
+            "content": [c.model_dump() for c in response.content]
+        })
 
         if tool_results:
-            messages.append({"role": "user", "content": tool_results})
+            messages.append({
+                "role": "user",
+                "content": tool_results
+            })
         else:
             break
